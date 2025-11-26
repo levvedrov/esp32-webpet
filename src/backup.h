@@ -2,9 +2,8 @@
 #include <Adafruit_GFX.h>
 #include "time.h"
 #include <Adafruit_SSD1306.h>
-
-#define SSID "U+Net0BBC_5G"
-#define PASSWORD "7A87@4P598"
+#include <WiFi.h>
+#include <string.h>
 
 #define SDA_PIN 21
 #define SCL_PIN 10
@@ -12,36 +11,53 @@
 
 #define STANDARD_SCREEN_OFFSET_X 16
 #define STANDARD_SCREEN_OFFSET_Y 8
-#define BLINK_PERIOD 3000
+#define BLINK_PERIOD 3500
 #define BLINK_TIME 175
 
+#define FACTOR_DECREASE_PERIOD 30000
+#define PETTING_DECREASE_RATE 0.90
+#define HUNGER_DECREASE_RATE 0.80
+#define CLEAN_DECREASE_RATE 0.95
+#define ATTENTION_DECREASE_RATE 0.70
+
 Adafruit_SSD1306 display(128, 64, &Wire);
+
+const char *ssid = "U+Net0BBC";
+const char *password = "7A87@4P598";
+struct tm timeinfo;
 
 class Animations
 {
 private:
-    Adafruit_SSD1306 &display;
-    static const unsigned char pettedFace[] PROGMEM;
+  Adafruit_SSD1306 &display;
+  static const unsigned char pettedFace[] PROGMEM;
 
 public:
-    Animations(Adafruit_SSD1306 &disp) : display(disp) {}
+  Animations(Adafruit_SSD1306 &disp) : display(disp) {}
 
-    void petted()
+  void petted()
+  {
+    for (int index = 0; index < 2; index++)
     {
-        for (int index = 0; index < 2; index++)
-        {
-            if (index != 0)
-                delay(200);
-            display.clearDisplay();
-            display.drawBitmap(STANDARD_SCREEN_OFFSET_X - 2, STANDARD_SCREEN_OFFSET_Y, this->pettedFace, 96, 48, SSD1306_WHITE);
-            display.display();
-            delay(200);
-            display.clearDisplay();
-            display.drawBitmap(STANDARD_SCREEN_OFFSET_X + 2, STANDARD_SCREEN_OFFSET_Y, this->pettedFace, 96, 48, SSD1306_WHITE);
-            display.display();
-        }
+      if (index != 0)
+        delay(200);
+      display.clearDisplay();
+      display.drawBitmap(STANDARD_SCREEN_OFFSET_X - 2, STANDARD_SCREEN_OFFSET_Y, this->pettedFace, 96, 48, SSD1306_WHITE);
+      display.display();
+      delay(200);
+      display.clearDisplay();
+      display.drawBitmap(STANDARD_SCREEN_OFFSET_X + 2, STANDARD_SCREEN_OFFSET_Y, this->pettedFace, 96, 48, SSD1306_WHITE);
+      display.display();
     }
+  }
 };
+
+typedef struct Factors
+{
+  unsigned int hunger, petting, attention, clean;
+} Factors;
+
+Factors factors = {50, 50, 70, 50};
 
 const unsigned char openEyes[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -80,6 +96,7 @@ const unsigned char openEyes[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
 const unsigned char blinkedEyes[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -117,8 +134,6 @@ const unsigned char blinkedEyes[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-struct tm timeinfo;
 
 const unsigned char Animations::pettedFace[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -158,76 +173,190 @@ const unsigned char Animations::pettedFace[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-unsigned long ticksBlinkStart;
+unsigned long blinkTimer = 0;
+unsigned long factorTimer = 0;
+uint8_t blinkState = 0;
 bool isBlinking = false;
 
-void setup()
+//
+void _displayFactors(Factors f)
 {
-    Serial.begin(115200);
-    Wire.begin(SDA_PIN, SCL_PIN);
-    pinMode(TOUCH_PIN, INPUT);
+  Serial.println();
+  Serial.println("STATUS:");
 
-    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
-    {
-        for (;;)
-            ;
-    }
-
-    ticksBlinkStart = millis();
-
-    display.clearDisplay();
-    display.setTextSize(2);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0, 0);
-    display.println("LOADING . . .");
-    display.display();
+  Serial.printf("Hunger: %u%%\n", f.hunger);
+  Serial.printf("Petting: %u%%\n", f.petting);
+  Serial.printf("Attention: %u%%\n", f.attention);
+  Serial.printf("Clean: %u%%\n", f.clean);
 }
 
-void HandleBlinking(unsigned long *ticksBlinkStart, bool *isBlinking)
+void HandleFactorsDecrease(Factors *f)
 {
-    unsigned long now = millis();
+  unsigned long now = millis();
+  if (now - factorTimer >= FACTOR_DECREASE_PERIOD)
+  {
+    f->attention *= ATTENTION_DECREASE_RATE;
+    f->clean *= CLEAN_DECREASE_RATE;
+    f->hunger *= HUNGER_DECREASE_RATE;
+    f->petting *= PETTING_DECREASE_RATE;
+    factorTimer = now;
+  }
+}
 
-    if (!(*isBlinking) && (now - *ticksBlinkStart >= BLINK_PERIOD))
-    {
-        *ticksBlinkStart = now;
-        *isBlinking = true;
-    }
+void increaseFactor(unsigned int *factor, float rate)
+{
+  if (*factor >= 100)
+    return;
 
-    if (*isBlinking && now - *ticksBlinkStart >= BLINK_TIME)
+  float newValue = *factor + (rate * 100);
+  factors.attention += 10;
+
+  if (factors.attention > 100.0f)
+    factors.attention = 100.0f;
+
+  if (newValue > 100.0f)
+    newValue = 100.0f;
+
+  *factor = (unsigned int)newValue;
+}
+
+void APsetup()
+{
+
+  WiFi.disconnect(true, true);
+  delay(500);
+
+  WiFi.mode(WIFI_AP_STA);
+
+  bool ok = WiFi.softAP("minilev", "12345678", 1, 0);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
+
+  Serial.print("[AP] ");
+  Serial.println(ok ? "Started" : "FAIL");
+
+  IPAddress ip = WiFi.softAPIP();
+  Serial.print("[AP] IP: ");
+  Serial.println(ip);
+}
+
+void HandleBlinking()
+{
+  unsigned long now = millis();
+
+  switch (blinkState)
+  {
+  case 0:
+
+    if (now - blinkTimer >= BLINK_PERIOD)
     {
-        *isBlinking = false;
+      blinkState = 1;
+      blinkTimer = now;
+      isBlinking = true;
     }
+    break;
+
+  case 1:
+
+    if (now - blinkTimer >= BLINK_TIME)
+    {
+      blinkState = 2;
+      blinkTimer = now;
+      isBlinking = false;
+    }
+    break;
+
+  case 2:
+
+    if (now - blinkTimer >= BLINK_TIME)
+    {
+      blinkState = 3;
+      blinkTimer = now;
+      isBlinking = true;
+    }
+    break;
+
+  case 3:
+    // Вторая закрытая фаза
+    if (now - blinkTimer >= BLINK_TIME)
+    {
+      blinkState = 4;
+      blinkTimer = now;
+      isBlinking = false;
+    }
+    break;
+
+  case 4:
+
+    if (now - blinkTimer >= BLINK_PERIOD)
+    {
+      blinkState = 1;
+      blinkTimer = now;
+      isBlinking = true;
+    }
+    break;
+  }
 }
 
 bool isPressed()
 {
-    int touch = digitalRead(TOUCH_PIN);
+  int touch = digitalRead(TOUCH_PIN);
 
-    if (touch == 1)
-        return true;
-    else if (touch == 0)
-        return false;
+  if (touch == 1)
+    return true;
+  else if (touch == 0)
+    return false;
+}
+
+//
+
+void setup()
+{
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println("BOOTING...");
+  Wire.begin(SDA_PIN, SCL_PIN);
+  pinMode(TOUCH_PIN, INPUT);
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
+  {
+    for (;;)
+      ;
+  }
+
+  blinkTimer = millis();
+  blinkState = 0;
+  isBlinking = false;
+
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println("LOADING");
+  display.display();
+
+  APsetup();
 }
 
 void loop()
 {
-    display.clearDisplay();
+  display.clearDisplay();
 
-    HandleBlinking(&ticksBlinkStart, &isBlinking);
+  HandleBlinking();
+  HandleFactorsDecrease(&factors);
 
-    if (isPressed())
-    {
-        Animations animation(display);
-        animation.petted();
-    }
+  _displayFactors(factors); // TMP
 
-    else if (isBlinking)
-        display.drawBitmap(STANDARD_SCREEN_OFFSET_X, STANDARD_SCREEN_OFFSET_Y, blinkedEyes, 96, 48, SSD1306_WHITE);
-    else if (!isBlinking)
-        display.drawBitmap(STANDARD_SCREEN_OFFSET_X, STANDARD_SCREEN_OFFSET_Y, openEyes, 96, 48, SSD1306_WHITE);
+  if (isPressed())
+  {
+    Animations animation(display);
+    animation.petted();
+    increaseFactor(&factors.petting, 0.05);
+  }
 
-    getLocalTime(&timeinfo);
-    Serial.println(&timeinfo, "%Y-%m-%d %H:%M:%S");
+  else if (isBlinking)
+    display.drawBitmap(STANDARD_SCREEN_OFFSET_X, STANDARD_SCREEN_OFFSET_Y, blinkedEyes, 96, 48, SSD1306_WHITE);
+  else if (!isBlinking)
+    display.drawBitmap(STANDARD_SCREEN_OFFSET_X, STANDARD_SCREEN_OFFSET_Y, openEyes, 96, 48, SSD1306_WHITE);
 
-    display.display();
+  display.display();
 }
