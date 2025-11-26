@@ -26,6 +26,8 @@ typedef struct Factors
   unsigned int hunger, petting, attention, clean;
 } Factors;
 
+unsigned int claculateOverall(Factors f);
+
 class Panel
 {
 private:
@@ -52,6 +54,29 @@ private:
     return String(buf);
   }
 
+  String overallLine(unsigned int value)
+  {
+    const char *cls = (value < 30) ? "factor overall low" : "factor overall";
+
+    char buf[600];
+    snprintf(buf, sizeof(buf),
+             R"rawliteral(
+                <div class="%s" id="overallCard">
+                    <div class="overall-label">Общее состояние</div>
+                    <div class="top">
+                        <span class="name">Raf</span>
+                        <span class="value" id="overallValue">%u%%</span>
+                    </div>
+                    <div class="bar">
+                        <div class="fill overall-fill" id="overallFill" style="width:%u%%"></div>
+                    </div>
+                </div>
+            )rawliteral",
+             cls, value, value);
+
+    return String(buf);
+  }
+
 public:
   Panel(Factors *ptr) : f(ptr) {}
 
@@ -63,81 +88,261 @@ public:
 <html>
 <head>
 <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MiniLev</title>
+<title>Raf</title>
 
 <style>
+    :root {
+        --bg-main: #050816;
+        --card-bg: #0b1020;
+        --card-bg-soft: #111827;
+        --accent: #8b5cf6;
+        --accent-soft: #6366f1;
+        --accent-clean: #22c55e;
+        --danger: #f97373;
+        --text-main: #e5e7eb;
+        --text-muted: #9ca3af;
+    }
+
     body {
-        background: #f3e9ff;
-        font-family: "Arial";
-        padding: 20px;
+        background: radial-gradient(circle at top, #111827 0%, #050816 55%, #020617 100%);
+        font-family: "Arial", system-ui, -apple-system, BlinkMacSystemFont;
+        padding: 20px 12px 28px;
         text-align: center;
-        color: #5b4a8d;
+        color: var(--text-main);
     }
 
     h2 {
-        margin-bottom: 25px;
-        font-size: 28px;
-        color: #7a60c6;
-        font-weight: bold;
-        text-shadow: 0px 0px 4px #ffffff;
+        margin-bottom: 8px;
+        font-size: 26px;
+        color: #e5e7ff;
+        font-weight: 700;
+        text-shadow: 0 0 10px rgba(99,102,241,0.7);
+    }
+
+    .subtitle {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-bottom: 18px;
     }
 
     .factor {
-        background: #ffffff;
+        background: var(--card-bg-soft);
         border-radius: 16px;
-        padding: 14px;
-        margin: 16px auto;
+        padding: 12px 14px;
+        margin: 9px auto;
         width: 92%;
         max-width: 420px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        border: 1px solid rgba(148,163,184,0.35);
+    }
+
+    .factor.overall {
+        border-radius: 20px;
+        padding: 16px;
+        margin-bottom: 18px;
+        background: radial-gradient(circle at top left, rgba(79,70,229,0.4), transparent 55%),
+                    radial-gradient(circle at bottom right, rgba(236,72,153,0.45), transparent 55%),
+                    var(--card-bg);
+        border: 1px solid rgba(129,140,248,0.9);
+        box-shadow:
+            0 0 20px rgba(129,140,248,0.5),
+            0 16px 40px rgba(0,0,0,0.75);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .factor.overall::before {
+        content: "";
+        position: absolute;
+        inset: -40%;
+        background: conic-gradient(
+            from 180deg,
+            rgba(129,140,248,0.0),
+            rgba(129,140,248,0.35),
+            rgba(236,72,153,0.4),
+            rgba(56,189,248,0.35),
+            rgba(129,140,248,0.0)
+        );
+        opacity: 0.25;
+        animation: rotateGlow 12s linear infinite;
+        pointer-events: none;
+    }
+
+    .factor.overall > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .overall-label {
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #a5b4fc;
+        text-align: left;
+        margin-bottom: 4px;
+        opacity: 0.9;
+    }
+
+    .factor.overall.low {
+        border-color: rgba(248,113,113,0.9);
+        box-shadow:
+            0 0 24px rgba(248,113,113,0.65),
+            0 16px 40px rgba(0,0,0,0.85);
+    }
+
+    .factor.overall.low::before {
+        background: conic-gradient(
+            from 180deg,
+            rgba(248,113,113,0.0),
+            rgba(248,113,113,0.4),
+            rgba(248,113,113,0.65),
+            rgba(248,113,113,0.4),
+            rgba(248,113,113,0.0)
+        );
+    }
+
+    .factor.overall.low .overall-label,
+    .factor.overall.low .top .name,
+    .factor.overall.low .top .value {
+        color: #fecaca;
     }
 
     .top {
         display: flex;
         justify-content: space-between;
-        font-size: 18px;
-        color: #7a60c6;
-        margin-bottom: 10px;
+        font-size: 16px;
+        color: #e5e7eb;
+        margin-bottom: 8px;
+    }
+
+    .name {
+        font-weight: 600;
+    }
+
+    .value {
+        font-weight: 600;
+        color: #a5b4fc;
+    }
+
+    .factor.overall.low .value {
+        color: #fecaca;
     }
 
     .bar {
-        background: #eadcff;
-        height: 22px;
-        border-radius: 12px;
+        background: #020617;
+        height: 20px;
+        border-radius: 999px;
         overflow: hidden;
-        margin-bottom: 10px;
-        border: 1px solid #d0b7ff;
+        margin-bottom: 6px;
+        border: 1px solid rgba(148,163,184,0.5);
+        position: relative;
     }
 
     .fill {
         height: 100%;
-        background: linear-gradient(90deg, #c288ff, #ffb1ef);
-        transition: width 0.25s ease-out;
+        background: linear-gradient(90deg, #22d3ee, #6366f1, #a855f7, #ec4899);
+        background-size: 200% 100%;
+        transition: width 0.45s ease-out;
+        box-shadow: 0 0 12px rgba(129,140,248,0.55);
+    }
+
+    .overall-fill {
+        /* те же стили, без анимаций */
+    }
+
+    /* ===== КНОПКИ ===== */
+    .btn-row {
+        display: flex;
+        gap: 10px;
+        width: 92%;
+        max-width: 420px;
+        margin: 14px auto 0;
     }
 
     .btn {
-        width: 85%;
-        max-width: 420px;
-        margin: 14px auto;
-        padding: 14px;
-        font-size: 20px;
-        border-radius: 14px;
-        border: none;
-        color: white;
-        background: #c288ff;
+        flex: 1;
+        padding: 12px 10px;
+        font-size: 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(148,163,184,0.6);
+        color: #f9fafb;
+        background: radial-gradient(circle at top left, #6366f1, #8b5cf6);
         cursor: pointer;
-        box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+        box-shadow: 0 10px 25px rgba(15,23,42,0.9);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        gap: 6px;
+        transition:
+            transform 0.09s ease-out,
+            box-shadow 0.12s ease-out,
+            filter 0.12s ease-out,
+            border-color 0.12s ease-out;
+        white-space: nowrap;
+    }
+
+    .btn span.label {
+        font-size: 14px;
+        opacity: 0.95;
+    }
+
+    .btn-feed {
+        background: radial-gradient(circle at top left, #f97316, #ec4899);
+        border-color: rgba(248, 153, 131, 0.9);
+    }
+
+    .btn-clean {
+        background: radial-gradient(circle at top left, #22c55e, #16a34a);
+        border-color: rgba(74, 222, 128, 0.9);
+    }
+
+    .btn:hover {
+        filter: brightness(1.06);
+        box-shadow: 0 14px 30px rgba(15,23,42,1);
+        transform: translateY(-1px);
     }
 
     .btn:active {
-        background: #a068e0;
-        transform: scale(0.97);
+        transform: translateY(1px) scale(0.98);
+        box-shadow: 0 6px 18px rgba(15,23,42,0.9);
+        filter: brightness(0.96);
+    }
+
+    .status {
+        margin: 12px auto 6px;
+        font-size: 14px;
+        color: var(--text-muted);
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 0.25s ease, transform 0.25s ease;
+        max-width: 420px;
+    }
+
+    .status.show {
+        opacity: 1;
+        transform: translateY(0px);
+    }
+
+    @keyframes rotateGlow {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
     }
 </style>
 
 <script>
-    function send(endpoint){
-        fetch(endpoint).then(() => location.reload());
+    function send(endpoint, text) {
+        const status = document.getElementById("statusText");
+        if (status) {
+            status.innerText = text;
+            status.classList.add("show");
+        }
+
+        fetch(endpoint).then(() => {
+            setTimeout(() => location.reload(), 500);
+        });
     }
 
     function refresh() {
@@ -155,6 +360,20 @@ public:
 
                 document.getElementById("cleanValue").innerText = data.clean + "%";
                 document.getElementById("cleanFill").style.width = data.clean + "%";
+
+                const overall = Math.round(
+                    (data.hunger + data.petting + data.attention + data.clean) / 4
+                );
+
+                const overallValue = document.getElementById("overallValue");
+                const overallFill  = document.getElementById("overallFill");
+                const card         = document.getElementById("overallCard");
+
+                if (overallValue && overallFill && card) {
+                    overallValue.innerText = overall + "%";
+                    overallFill.style.width = overall + "%";
+                    card.classList.toggle("low", overall < 30);
+                }
             });
     }
 
@@ -163,19 +382,35 @@ public:
 </head>
 <body>
 
-<h2>🐰 MiniLev — Тамагочи</h2>
+<h2>Интерактивная панель</h2>
+<div class="subtitle">
+  <div>Следи за его уровнем, чтобы он не загрустил </div>
+  <div>И ты не грусти, мы тебя любим -Л💜</div>
+</div>
+
+<div class="card-wrapper">
 )rawliteral";
 
-    // Линии
+    unsigned int overall = claculateOverall(*f);
+    page += overallLine(overall);
+
     page += line("hunger", "Голод", f->hunger);
     page += line("petting", "Ласка", f->petting);
     page += line("attention", "Внимание", f->attention);
     page += line("clean", "Чистота", f->clean);
 
-    // Кнопки
     page += R"rawliteral(
-        <button class="btn" onclick="send('/feed')">🍓 Покормить</button>
-        <button class="btn" onclick="send('/clean')">🛁 Помыть</button>
+    <div id="statusText" class="status"></div>
+
+    <div class="btn-row">
+        <button class="btn btn-feed" onclick="send('/feed','🍓 Тамагочи кушает...')">
+            🍓 <span class="label">Покормить</span>
+        </button>
+        <button class="btn btn-clean" onclick="send('/clean','🛁 Тамагочи моется...')">
+            🛁 <span class="label">Помыть</span>
+        </button>
+    </div>
+</div>
 
 </body>
 </html>
@@ -200,6 +435,7 @@ private:
   static const unsigned char eatingFace_3[] PROGMEM;
   static const unsigned char eatingFace_4[] PROGMEM;
   static const unsigned char eatingFace_5[] PROGMEM;
+  static const unsigned char enoght[] PROGMEM;
 
   static const unsigned char pettedFace[] PROGMEM;
 
@@ -213,11 +449,11 @@ public:
       if (index != 0)
         delay(200);
       display.clearDisplay();
-      display.drawBitmap(STANDARD_SCREEN_OFFSET_X, STANDARD_SCREEN_OFFSET_Y, this->pettedFace, 96, 48, SSD1306_WHITE);
+      display.drawBitmap(STANDARD_SCREEN_OFFSET_X - 2, STANDARD_SCREEN_OFFSET_Y, this->pettedFace, 96, 48, SSD1306_WHITE);
       display.display();
       delay(200);
       display.clearDisplay();
-      display.drawBitmap(STANDARD_SCREEN_OFFSET_X, STANDARD_SCREEN_OFFSET_Y, this->pettedFace, 96, 48, SSD1306_WHITE);
+      display.drawBitmap(STANDARD_SCREEN_OFFSET_X + 2, STANDARD_SCREEN_OFFSET_Y, this->pettedFace, 96, 48, SSD1306_WHITE);
       display.display();
     }
   }
@@ -249,10 +485,30 @@ public:
       display.display();
     }
   }
+
+  void enoughEating()
+  {
+    for (int index = 0; index < 2; index++)
+    {
+      if (index != 0)
+        delay(200);
+      display.clearDisplay();
+      display.drawBitmap(STANDARD_SCREEN_OFFSET_X - 1, STANDARD_SCREEN_OFFSET_Y, this->enoght, 96, 48, SSD1306_WHITE);
+      display.display();
+      delay(200);
+      display.clearDisplay();
+      display.drawBitmap(STANDARD_SCREEN_OFFSET_X + 1, STANDARD_SCREEN_OFFSET_Y, this->enoght, 96, 48, SSD1306_WHITE);
+      display.display();
+    }
+  }
 };
 
 Animations animation(display);
 Factors factors = {50, 50, 70, 50};
+unsigned int claculateOverall(Factors f)
+{
+  return (f.attention + f.clean + f.hunger + f.petting) / 4;
+}
 
 const unsigned char openEyes[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -320,6 +576,44 @@ const unsigned char blinkedEyes[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+const unsigned char Animations::enoght[] PROGMEM = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x01, 0x80, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x80, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x01, 0x00, 0x00, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00,
+    0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x08, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x20, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00,
+    0x00, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x80, 0x00, 0x00, 0x00, 0xc0, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00,
+    0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x00,
+    0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+    0xc0, 0x00, 0x00, 0x03, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x80, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x03, 0xc0, 0x40, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x02, 0x02, 0x40, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x02, 0x40, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc4, 0x23, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7c, 0x3e, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -569,7 +863,8 @@ Panel panel(&factors);
 void _displayFactors(Factors f)
 {
   Serial.println();
-  Serial.println("STATUS:");
+  Serial.println("STATUS: ");
+  Serial.printf("OVERALL: %u%%\n", claculateOverall(f));
 
   Serial.printf("Hunger: %u%%\n", f.hunger);
   Serial.printf("Petting: %u%%\n", f.petting);
@@ -615,7 +910,7 @@ void APsetup()
 
   WiFi.mode(WIFI_AP_STA);
 
-  bool ok = WiFi.softAP("minilev", nullptr, 1, 0);
+  bool ok = WiFi.softAP("Raf", nullptr, 1, 0);
   WiFi.setTxPower(WIFI_POWER_19_5dBm);
 
   Serial.print("[AP] ");
@@ -627,7 +922,7 @@ void APsetup()
   server.on("/", []()
             { server.send(200, "text/html; charset=UTF-8", panel.render()); });
   server.on("/feed", []()
-            { increaseFactor(&factors.hunger, 25); server.send(200, "text/plain; charset=UTF-8", "OK"); animation.eating(); });
+            { if (factors.hunger<100) animation.eating(); else animation.enoughEating(); increaseFactor(&factors.hunger, 25); server.send(200, "text/plain; charset=UTF-8", "OK"); });
   server.on("/clean", []()
             { increaseFactor(&factors.clean, 25); server.send(200, "text/plain; charset=UTF-8", "OK"); });
 
