@@ -5,6 +5,8 @@
 #include <WiFi.h>
 #include <string.h>
 #include <WebServer.h>
+#include <EEPROM.h>
+#define EEPROM_SIZE 256
 
 #define SDA_PIN 21
 #define SCL_PIN 10
@@ -33,44 +35,51 @@ class Panel
 private:
   Factors *f;
 
+  // ----- Обычная линия -----
   String line(const char *id, const char *name, unsigned int value)
   {
-    char buf[600];
+    const char *cls =
+        (value < 30) ? "low" : (value <= 70) ? "mid"
+                                             : "high";
+
+    char buf[650];
     snprintf(buf, sizeof(buf),
              R"rawliteral(
-                <div class="factor">
-                    <div class="top">
-                        <span class="name">%s</span>
-                        <span class="value" id="%sValue">%u%%</span>
-                    </div>
-                    <div class="bar">
-                        <div class="fill" id="%sFill" style="width:%u%%"></div>
-                    </div>
+            <div class="factor">
+                <div class="top">
+                    <span class="name">%s</span>
+                    <span class="value" id="%sValue">%u%%</span>
                 </div>
+                <div class="bar %s" id="%sBar">
+                    <div class="fill" id="%sFill" style="width:%u%%"></div>
+                </div>
+            </div>
             )rawliteral",
              name, id, value,
+             cls, id,
              id, value);
 
     return String(buf);
   }
 
+  // ----- Общая линия -----
   String overallLine(unsigned int value)
   {
     const char *cls = (value < 30) ? "factor overall low" : "factor overall";
 
-    char buf[600];
+    char buf[800];
     snprintf(buf, sizeof(buf),
              R"rawliteral(
-                <div class="%s" id="overallCard">
-                    <div class="overall-label">Общее состояние</div>
-                    <div class="top">
-                        <span class="name">Raf</span>
-                        <span class="value" id="overallValue">%u%%</span>
-                    </div>
-                    <div class="bar">
-                        <div class="fill overall-fill" id="overallFill" style="width:%u%%"></div>
-                    </div>
+            <div class="%s" id="overallCard">
+                <div class="overall-label">Общее состояние</div>
+                <div class="top">
+                    <span class="name">Raf</span>
+                    <span class="value" id="overallValue">%u%%</span>
                 </div>
+                <div class="bar">
+                    <div class="fill overall-fill" id="overallFill" style="width:%u%%"></div>
+                </div>
+            </div>
             )rawliteral",
              cls, value, value);
 
@@ -82,8 +91,7 @@ public:
 
   String render()
   {
-    String page =
-        R"rawliteral(
+    String page = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
@@ -92,128 +100,168 @@ public:
 
 <style>
     :root {
-        --bg-main: #050816;
-        --card-bg: #0b1020;
-        --card-bg-soft: #111827;
-        --accent: #8b5cf6;
-        --accent-soft: #6366f1;
-        --accent-clean: #22c55e;
-        --danger: #f97373;
-        --text-main: #e5e7eb;
-        --text-muted: #9ca3af;
+        --bg1: #fde1f3;
+        --bg2: #f9e4ff;
+        --bg3: #fef6ff;
+
+        --card: #ffffff;
+        --card-soft: #fff7ff;
+
+        --green: #4ade80;
+        --green-soft: #bbf7d0;
+
+        --orange: #fb923c;
+        --orange-soft: #fed7aa;
+
+        --red: #f87171;
+        --red-soft: #fecaca;
+
+        --purple: #d946ef;
+
+        --text-main: #374151;
+        --text-soft: #6b7280;
     }
 
     body {
-        background: radial-gradient(circle at top, #111827 0%, #050816 55%, #020617 100%);
-        font-family: "Arial", system-ui, -apple-system, BlinkMacSystemFont;
-        padding: 20px 12px 28px;
+        background: linear-gradient(180deg, var(--bg1), var(--bg2), var(--bg3));
+        font-family: "Arial";
+        padding: 22px 16px;
         text-align: center;
         color: var(--text-main);
     }
 
-    h2 {
-        margin-bottom: 8px;
-        font-size: 26px;
-        color: #e5e7ff;
-        font-weight: 700;
-        text-shadow: 0 0 10px rgba(99,102,241,0.7);
-    }
 
-    .subtitle {
-        font-size: 13px;
-        color: var(--text-muted);
-        margin-bottom: 18px;
-    }
+    /* ======= ОБНОВЛЕННАЯ ШАПКА ======= */
 
-    .factor {
-        background: var(--card-bg-soft);
-        border-radius: 16px;
-        padding: 12px 14px;
-        margin: 9px auto;
-        width: 92%;
+    .header {
         max-width: 420px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-        border: 1px solid rgba(148,163,184,0.35);
-    }
-
-    .factor.overall {
-        border-radius: 20px;
-        padding: 16px;
-        margin-bottom: 18px;
-        background: radial-gradient(circle at top left, rgba(79,70,229,0.4), transparent 55%),
-                    radial-gradient(circle at bottom right, rgba(236,72,153,0.45), transparent 55%),
-                    var(--card-bg);
-        border: 1px solid rgba(129,140,248,0.9);
-        box-shadow:
-            0 0 20px rgba(129,140,248,0.5),
-            0 16px 40px rgba(0,0,0,0.75);
+        margin: 0 auto 20px;
+        padding: 12px 18px 18px;
+        border-radius: 22px;
+        background: linear-gradient(135deg, #ffffffdd, #ffe9ffdd);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 12px 28px rgba(0,0,0,0.06);
+        border: 1px solid rgba(255,255,255,0.9);
         position: relative;
         overflow: hidden;
+        text-align: left;
     }
 
-    .factor.overall::before {
+    .header::before {
         content: "";
         position: absolute;
-        inset: -40%;
-        background: conic-gradient(
-            from 180deg,
-            rgba(129,140,248,0.0),
-            rgba(129,140,248,0.35),
-            rgba(236,72,153,0.4),
-            rgba(56,189,248,0.35),
-            rgba(129,140,248,0.0)
-        );
-        opacity: 0.25;
-        animation: rotateGlow 12s linear infinite;
-        pointer-events: none;
+        right: -40px;
+        top: -40px;
+        width: 120px;
+        height: 120px;
+        border-radius: 999px;
+        background: radial-gradient(circle at 30% 30%, #f9a8ff, #e879f9);
+        opacity: 0.55;
+        filter: blur(2px);
     }
 
-    .factor.overall > * {
+    .header-inner {
         position: relative;
         z-index: 1;
     }
 
-    .overall-label {
-        font-size: 12px;
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px 4px 6px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.9);
+        border: 1px solid rgba(216,180,254,0.7);
+        font-size: 11px;
         font-weight: 600;
-        letter-spacing: 0.08em;
+        color: var(--text-soft);
         text-transform: uppercase;
-        color: #a5b4fc;
-        text-align: left;
-        margin-bottom: 4px;
-        opacity: 0.9;
+        letter-spacing: 0.11em;
+        margin-bottom: 8px;
+    }
+
+    .badge-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #22c55e;
+        box-shadow: 0 0 10px rgba(34,197,94,0.8);
+    }
+
+    h2 {
+        font-size: 24px;
+        font-weight: 800;
+        color: var(--purple);
+        margin: 2px 0 4px;
+        text-shadow: 0 0 8px rgba(217,70,239,0.22);
+    }
+
+    .subtitle {
+        font-size: 13px;
+        line-height: 1.35;
+    }
+
+    .subtitle div {
+        color: var(--text-soft);
+        font-size: 13px;
+    }
+
+
+    /* ===== Блоки ===== */
+    .factor {
+        background: var(--card);
+        border-radius: 18px;
+        padding: 14px;
+        margin: 10px auto;
+        width: 92%;
+        max-width: 420px;
+        border: 1px solid #f6d8f8;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+
+    .factor.overall {
+        border-radius: 20px;
+        padding: 18px;
+        margin-bottom: 18px;
+        background: var(--card-soft);
+        border: 2px solid #f3a7ff);
+        box-shadow: 0 0 18px rgba(243,167,255,0.5);
+        animation: heartPulse 2.2s infinite ease-in-out;
+        position: relative;
+        overflow: hidden;
     }
 
     .factor.overall.low {
-        border-color: rgba(248,113,113,0.9);
-        box-shadow:
-            0 0 24px rgba(248,113,113,0.65),
-            0 16px 40px rgba(0,0,0,0.85);
+        border-color: #f87171;
+        box-shadow: 0 0 18px rgba(248,113,113,0.7);
+        animation: heartPulseRed 1.6s infinite ease-in-out;
     }
 
-    .factor.overall.low::before {
-        background: conic-gradient(
-            from 180deg,
-            rgba(248,113,113,0.0),
-            rgba(248,113,113,0.4),
-            rgba(248,113,113,0.65),
-            rgba(248,113,113,0.4),
-            rgba(248,113,113,0.0)
-        );
+    @keyframes heartPulse { 
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.015); }
+    }
+    @keyframes heartPulseRed {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.03); }
     }
 
-    .factor.overall.low .overall-label,
-    .factor.overall.low .top .name,
-    .factor.overall.low .top .value {
-        color: #fecaca;
+    .overall-label {
+        color: var(--purple);
+        font-size: 12px;
+        text-align: left;
+        margin-bottom: 4px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
     }
 
     .top {
         display: flex;
         justify-content: space-between;
+        margin-bottom: 6px;
         font-size: 16px;
-        color: #e5e7eb;
-        margin-bottom: 8px;
     }
 
     .name {
@@ -221,127 +269,111 @@ public:
     }
 
     .value {
-        font-weight: 600;
-        color: #a5b4fc;
-    }
-
-    .factor.overall.low .value {
-        color: #fecaca;
+        font-weight: 700;
+        color: var(--purple);
     }
 
     .bar {
-        background: #020617;
         height: 20px;
         border-radius: 999px;
         overflow: hidden;
-        margin-bottom: 6px;
-        border: 1px solid rgba(148,163,184,0.5);
-        position: relative;
+        background: #fff0fa;
+        border: 1px solid #f3d1f5;
     }
 
-    .fill {
-        height: 100%;
-        background: linear-gradient(90deg, #22d3ee, #6366f1, #a855f7, #ec4899);
-        background-size: 200% 100%;
-        transition: width 0.45s ease-out;
-        box-shadow: 0 0 12px rgba(129,140,248,0.55);
+    .fill { height: 100%; transition: width 0.35s ease-out; }
+
+    .bar.low .fill {
+        background: linear-gradient(90deg, var(--red-soft), var(--red));
+    }
+    .bar.mid .fill {
+        background: linear-gradient(90deg, var(--orange-soft), var(--orange));
+    }
+    .bar.high .fill {
+        background: linear-gradient(90deg, var(--green-soft), var(--green));
     }
 
     .overall-fill {
-        /* те же стили, без анимаций */
+        background: linear-gradient(90deg, #f9a8ff, #e879f9);
     }
 
-    /* ===== КНОПКИ ===== */
     .btn-row {
+        margin-top: 18px;
         display: flex;
-        gap: 10px;
+        gap: 12px;
         width: 92%;
         max-width: 420px;
-        margin: 14px auto 0;
+        margin-left: auto;
+        margin-right: auto;
     }
 
     .btn {
         flex: 1;
-        padding: 12px 10px;
-        font-size: 16px;
+        padding: 12px;
         border-radius: 999px;
-        border: 1px solid rgba(148,163,184,0.6);
-        color: #f9fafb;
-        background: radial-gradient(circle at top left, #6366f1, #8b5cf6);
+        border: none;
+        font-size: 15px;
+        font-weight: 700;
         cursor: pointer;
-        box-shadow: 0 10px 25px rgba(15,23,42,0.9);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 600;
-        letter-spacing: 0.02em;
-        gap: 6px;
-        transition:
-            transform 0.09s ease-out,
-            box-shadow 0.12s ease-out,
-            filter 0.12s ease-out,
-            border-color 0.12s ease-out;
-        white-space: nowrap;
-    }
-
-    .btn span.label {
-        font-size: 14px;
-        opacity: 0.95;
+        color: white;
+        transition: 0.12s ease-out;
     }
 
     .btn-feed {
-        background: radial-gradient(circle at top left, #f97316, #ec4899);
-        border-color: rgba(248, 153, 131, 0.9);
+        background: linear-gradient(135deg, #f68989, #f35db3);
     }
 
     .btn-clean {
-        background: radial-gradient(circle at top left, #22c55e, #16a34a);
-        border-color: rgba(74, 222, 128, 0.9);
+        background: linear-gradient(135deg, #4ade80, #22c55e);
     }
 
-    .btn:hover {
-        filter: brightness(1.06);
-        box-shadow: 0 14px 30px rgba(15,23,42,1);
-        transform: translateY(-1px);
-    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn:active { transform: scale(0.97); }
 
-    .btn:active {
-        transform: translateY(1px) scale(0.98);
-        box-shadow: 0 6px 18px rgba(15,23,42,0.9);
-        filter: brightness(0.96);
-    }
+   #toast {
+    position: fixed;
+    bottom: 60px;                     /* поднимаем выше кнопок */
+    left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: #ffffffee;
+    backdrop-filter: blur(6px);
+    padding: 14px 22px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--purple);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    opacity: 0;
+    transition: all 0.35s ease;
+    pointer-events: none;
+    z-index: 9999;                    /* всегда поверх */
+}
 
-    .status {
-        margin: 12px auto 6px;
-        font-size: 14px;
-        color: var(--text-muted);
-        opacity: 0;
-        transform: translateY(6px);
-        transition: opacity 0.25s ease, transform 0.25s ease;
-        max-width: 420px;
+/* адаптация под маленькие телефоны */
+@media (max-height: 480px) {
+    #toast {
+        bottom: 50px;
     }
+}
 
-    .status.show {
+    #toast.show {
         opacity: 1;
-        transform: translateY(0px);
-    }
-
-    @keyframes rotateGlow {
-        from { transform: rotate(0deg); }
-        to   { transform: rotate(360deg); }
+        transform: translateX(-50%) translateY(0px);
     }
 </style>
 
 <script>
-    function send(endpoint, text) {
-        const status = document.getElementById("statusText");
-        if (status) {
-            status.innerText = text;
-            status.classList.add("show");
-        }
+    function toast(msg) {
+        const t = document.getElementById("toast");
+        t.innerText = msg;
+        t.classList.add("show");
+        setTimeout(() => t.classList.remove("show"), 10000);
+    }
 
+    function send(endpoint, message) {
+        toast(message);
         fetch(endpoint).then(() => {
-            setTimeout(() => location.reload(), 500);
+            setTimeout(() => location.reload(), 600);
         });
     }
 
@@ -349,43 +381,48 @@ public:
         fetch('/status')
             .then(r => r.json())
             .then(data => {
-                document.getElementById("hungerValue").innerText = data.hunger + "%";
-                document.getElementById("hungerFill").style.width = data.hunger + "%";
+                const ids = ["hunger","petting","attention","clean"];
+                for (let id of ids) {
+                    const v = data[id];
+                    document.getElementById(id+"Value").innerText = v + "%";
+                    document.getElementById(id+"Fill").style.width = v + "%";
 
-                document.getElementById("pettingValue").innerText = data.petting + "%";
-                document.getElementById("pettingFill").style.width = data.petting + "%";
-
-                document.getElementById("attentionValue").innerText = data.attention + "%";
-                document.getElementById("attentionFill").style.width = data.attention + "%";
-
-                document.getElementById("cleanValue").innerText = data.clean + "%";
-                document.getElementById("cleanFill").style.width = data.clean + "%";
+                    const bar = document.getElementById(id+"Bar");
+                    bar.classList.remove("low","mid","high");
+                    bar.classList.add(v < 30 ? "low" : (v <= 70 ? "mid" : "high"));
+                }
 
                 const overall = Math.round(
                     (data.hunger + data.petting + data.attention + data.clean) / 4
                 );
 
-                const overallValue = document.getElementById("overallValue");
-                const overallFill  = document.getElementById("overallFill");
-                const card         = document.getElementById("overallCard");
+                document.getElementById("overallValue").innerText = overall + "%";
+                document.getElementById("overallFill").style.width = overall + "%";
 
-                if (overallValue && overallFill && card) {
-                    overallValue.innerText = overall + "%";
-                    overallFill.style.width = overall + "%";
-                    card.classList.toggle("low", overall < 30);
-                }
+                document.getElementById("overallCard")
+                    .classList.toggle("low", overall < 30);
             });
     }
 
     setInterval(refresh, 1200);
 </script>
 </head>
+
 <body>
 
-<h2>Интерактивная панель</h2>
-<div class="subtitle">
-  <div>Следи за его уровнем, чтобы он не загрустил </div>
-  <div>И ты не грусти, мы тебя любим -Л💜</div>
+<div class="header">
+    <div class="header-inner">
+        <div class="badge">
+            <span>Панель управления</span>
+        </div>
+
+        <h2>Я люблю тебя, Яна. -L</h2>
+
+        <div class="subtitle">
+            <div>Небольшой уголок, где можно следить за его состоянием и вовремя заботиться.</div>
+            <div>Он очень ценит твою заботу и я тожеее ❤️</div>
+        </div>
+    </div>
 </div>
 
 <div class="card-wrapper">
@@ -400,14 +437,14 @@ public:
     page += line("clean", "Чистота", f->clean);
 
     page += R"rawliteral(
-    <div id="statusText" class="status"></div>
+    <div id="toast"></div>
 
     <div class="btn-row">
-        <button class="btn btn-feed" onclick="send('/feed','🍓 Тамагочи кушает...')">
-            🍓 <span class="label">Покормить</span>
+        <button class="btn btn-feed" onclick="send('/feed','Raf кушает...')">
+            Покормить
         </button>
-        <button class="btn btn-clean" onclick="send('/clean','🛁 Тамагочи моется...')">
-            🛁 <span class="label">Помыть</span>
+        <button class="btn btn-clean" onclick="send('/clean','Raf чистится...')">
+            Почистить
         </button>
     </div>
 </div>
@@ -436,6 +473,7 @@ private:
   static const unsigned char eatingFace_4[] PROGMEM;
   static const unsigned char eatingFace_5[] PROGMEM;
   static const unsigned char enoght[] PROGMEM;
+  static const unsigned char shower[] PROGMEM;
 
   static const unsigned char pettedFace[] PROGMEM;
 
@@ -498,6 +536,28 @@ public:
       delay(200);
       display.clearDisplay();
       display.drawBitmap(STANDARD_SCREEN_OFFSET_X + 1, STANDARD_SCREEN_OFFSET_Y, this->enoght, 96, 48, SSD1306_WHITE);
+      display.display();
+    }
+  }
+
+  void showering()
+  {
+    for (int index = 0; index < 8; index++)
+    {
+      if (index != 0)
+        delay(100);
+      display.clearDisplay();
+      display.drawBitmap(STANDARD_SCREEN_OFFSET_X - 1, STANDARD_SCREEN_OFFSET_Y, this->enoght, 96, 48, SSD1306_WHITE);
+      display.drawBitmap(0 + index * 10, STANDARD_SCREEN_OFFSET_Y, this->shower, 96, 48, SSD1306_WHITE);
+      display.display();
+    }
+    for (int index = 0; index < 8; index++)
+    {
+      if (index != 0)
+        delay(100);
+      display.clearDisplay();
+      display.drawBitmap(STANDARD_SCREEN_OFFSET_X - 1, STANDARD_SCREEN_OFFSET_Y, this->enoght, 96, 48, SSD1306_WHITE);
+      display.drawBitmap(70 - index * 10, STANDARD_SCREEN_OFFSET_Y, this->shower, 96, 48, SSD1306_WHITE);
       display.display();
     }
   }
@@ -927,6 +987,45 @@ const unsigned char Animations::pettedFace[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+const unsigned char Animations::shower[] PROGMEM = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfe, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0xff, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x1f, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00,
+    0x3f, 0xff, 0xff, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0xff, 0xff, 0xff, 0xff,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x3c, 0x7f, 0xc3, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x7f, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xc0, 0x00, 0x00, 0x00, 0x1f, 0x80, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x1e, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xc0, 0x00, 0x00, 0x00, 0x3f, 0xe2, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x04, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xe0, 0x00, 0x00, 0x00, 0x7f, 0xf8, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00, 0x07, 0xfc, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x00, 0xfc, 0x7f, 0xff, 0xfe, 0x00, 0x7f, 0xff,
+    0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xff, 0xf0, 0x00, 0x07, 0xff, 0x80, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x3f, 0xff, 0x80, 0x00, 0x01, 0xff, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xfc,
+    0x00, 0x00, 0x00, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x80, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
 unsigned long blinkTimer = 0;
 unsigned long factorTimer = 0;
 uint8_t blinkState = 0;
@@ -1000,7 +1099,7 @@ void APsetup()
   server.on("/feed", []()
             { if (factors.hunger<100) animation.eating(); else animation.enoughEating(); increaseFactor(&factors.hunger, 25); server.send(200, "text/plain; charset=UTF-8", "OK"); });
   server.on("/clean", []()
-            { increaseFactor(&factors.clean, 25); server.send(200, "text/plain; charset=UTF-8", "OK"); });
+            { if (factors.clean<100) animation.showering(); else animation.enoughEating(); increaseFactor(&factors.clean, 25); server.send(200, "text/plain; charset=UTF-8", "OK"); });
 
   server.begin();
   Serial.println("HTTP server started.");
@@ -1081,6 +1180,7 @@ void setup()
   Serial.begin(115200);
   delay(1000);
   Serial.println("BOOTING...");
+  EEPROM.begin(EEPROM_SIZE);
   Wire.begin(SDA_PIN, SCL_PIN);
   pinMode(TOUCH_PIN, INPUT);
 
