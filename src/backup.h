@@ -17,16 +17,43 @@
 #define BLINK_PERIOD 3500
 #define BLINK_TIME 175
 
-#define FACTOR_DECREASE_PERIOD 30000
+#define FACTOR_DECREASE_PERIOD 1600000
 #define PETTING_DECREASE_RATE 0.90
 #define HUNGER_DECREASE_RATE 0.80
 #define CLEAN_DECREASE_RATE 0.95
 #define ATTENTION_DECREASE_RATE 0.70
 
+const uint32_t FACTORS_SIGNATURE = 0x52414646;
+
 typedef struct Factors
 {
   unsigned int hunger, petting, attention, clean;
 } Factors;
+
+void saveFactors(Factors &f)
+{
+  int addr = 0;
+
+  EEPROM.put(addr, FACTORS_SIGNATURE);
+  addr += sizeof(FACTORS_SIGNATURE);
+
+  EEPROM.put(addr, f);
+  EEPROM.commit();
+}
+
+bool hasSavedFactors()
+{
+  uint32_t sig;
+  EEPROM.get(0, sig);
+  return (sig == FACTORS_SIGNATURE);
+}
+
+void loadFactors(Factors &f)
+{
+  int addr = 0;
+  addr += sizeof(FACTORS_SIGNATURE);
+  EEPROM.get(addr, f);
+}
 
 unsigned int claculateOverall(Factors f);
 
@@ -130,19 +157,85 @@ public:
         color: var(--text-main);
     }
 
+
+    /* ======= ОБНОВЛЕННАЯ ШАПКА ======= */
+
+    .header {
+        max-width: 420px;
+        margin: 0 auto 20px;
+        padding: 12px 18px 18px;
+        border-radius: 22px;
+        background: linear-gradient(135deg, #ffffffdd, #ffe9ffdd);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 12px 28px rgba(0,0,0,0.06);
+        border: 1px solid rgba(255,255,255,0.9);
+        position: relative;
+        overflow: hidden;
+        text-align: left;
+    }
+
+    .header::before {
+        content: "";
+        position: absolute;
+        right: -40px;
+        top: -40px;
+        width: 120px;
+        height: 120px;
+        border-radius: 999px;
+        background: radial-gradient(circle at 30% 30%, #f9a8ff, #e879f9);
+        opacity: 0.55;
+        filter: blur(2px);
+    }
+
+    .header-inner {
+        position: relative;
+        z-index: 1;
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px 4px 6px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.9);
+        border: 1px solid rgba(216,180,254,0.7);
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-soft);
+        text-transform: uppercase;
+        letter-spacing: 0.11em;
+        margin-bottom: 8px;
+    }
+
+    .badge-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #22c55e;
+        box-shadow: 0 0 10px rgba(34,197,94,0.8);
+    }
+
     h2 {
-        font-size: 28px;
+        font-size: 24px;
         font-weight: 800;
         color: var(--purple);
-        margin-bottom: 4px;
-        text-shadow: 0 0 8px rgba(217,70,239,0.25);
+        margin: 2px 0 4px;
+        text-shadow: 0 0 8px rgba(217,70,239,0.22);
+    }
+
+    .subtitle {
+        font-size: 13px;
+        line-height: 1.35;
     }
 
     .subtitle div {
         color: var(--text-soft);
-        font-size: 14px;
+        font-size: 13px;
     }
 
+
+    /* ===== Блоки ===== */
     .factor {
         background: var(--card);
         border-radius: 18px;
@@ -155,50 +248,30 @@ public:
     }
 
     .factor.overall {
-    border-radius: 20px;
-    padding: 18px;
-    margin-bottom: 18px;
-    background: var(--card-soft);
-    border: 2px solid #f3a7ff;
-    box-shadow: 0 0 18px rgba(243,167,255,0.5);
-    animation: heartPulse 2.2s infinite ease-in-out;
-    position: relative;
-    overflow: hidden;
-}
+        border-radius: 20px;
+        padding: 18px;
+        margin-bottom: 18px;
+        background: var(--card-soft);
+        border: 2px solid #f3a7ff);
+        box-shadow: 0 0 18px rgba(243,167,255,0.5);
+        animation: heartPulse 2.2s infinite ease-in-out;
+        position: relative;
+        overflow: hidden;
+    }
 
-    /* слабое состояние */
     .factor.overall.low {
         border-color: #f87171;
         box-shadow: 0 0 18px rgba(248,113,113,0.7);
         animation: heartPulseRed 1.6s infinite ease-in-out;
     }
 
-    /* Пульсация сердца (нормальное состояние) */
-    @keyframes heartPulse {
-        0%, 100% {
-            box-shadow: 0 0 14px rgba(243,167,255,0.35),
-                        0 0 30px rgba(243,167,255,0.15);
-            transform: scale(1);
-        }
-        50% {
-            box-shadow: 0 0 22px rgba(243,167,255,0.7),
-                        0 0 38px rgba(243,167,255,0.25);
-            transform: scale(1.015);
-        }
+    @keyframes heartPulse { 
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.015); }
     }
-
-    /* Пульсация сердца (критическое состояние — красное) */
     @keyframes heartPulseRed {
-        0%, 100% {
-            box-shadow: 0 0 14px rgba(248,113,113,0.45),
-                        0 0 28px rgba(248,113,113,0.18);
-            transform: scale(1);
-        }
-        50% {
-            box-shadow: 0 0 22px rgba(248,113,113,0.9),
-                        0 0 38px rgba(248,113,113,0.35);
-            transform: scale(1.03);
-        }
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.03); }
     }
 
     .overall-label {
@@ -227,13 +300,6 @@ public:
         color: var(--purple);
     }
 
-    .factor.overall.low .overall-label,
-    .factor.overall.low .top .name,
-    .factor.overall.low .top .value {
-        color: #b91c1c;
-    }
-
-    /* ===== Полосы ===== */
     .bar {
         height: 20px;
         border-radius: 999px;
@@ -242,34 +308,22 @@ public:
         border: 1px solid #f3d1f5;
     }
 
-    .fill {
-        height: 100%;
-        transition: width 0.35s ease-out;
-    }
+    .fill { height: 100%; transition: width 0.35s ease-out; }
 
-    /* Цвета для обычных полос */
     .bar.low .fill {
         background: linear-gradient(90deg, var(--red-soft), var(--red));
-        box-shadow: 0 0 8px var(--red);
     }
-
     .bar.mid .fill {
         background: linear-gradient(90deg, var(--orange-soft), var(--orange));
-        box-shadow: 0 0 8px var(--orange);
     }
-
     .bar.high .fill {
         background: linear-gradient(90deg, var(--green-soft), var(--green));
-        box-shadow: 0 0 8px var(--green);
     }
 
-    /* Отдельный вид для общей полоски */
     .overall-fill {
         background: linear-gradient(90deg, #f9a8ff, #e879f9);
-        box-shadow: 0 0 10px rgba(232,121,249,0.6);
     }
 
-    /* ===== Кнопки ===== */
     .btn-row {
         margin-top: 18px;
         display: flex;
@@ -301,26 +355,33 @@ public:
     }
 
     .btn:hover { transform: translateY(-2px); }
-    .btn:active { transform: translateY(1px) scale(0.98); }
+    .btn:active { transform: scale(0.97); }
 
-    /* ===== Toast ===== */
+   #toast {
+    position: fixed;
+    bottom: 60px;                     /* поднимаем выше кнопок */
+    left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: #ffffffee;
+    backdrop-filter: blur(6px);
+    padding: 14px 22px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--purple);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    opacity: 0;
+    transition: all 0.35s ease;
+    pointer-events: none;
+    z-index: 9999;                    /* всегда поверх */
+}
+
+/* адаптация под маленькие телефоны */
+@media (max-height: 480px) {
     #toast {
-        position: fixed;
-        bottom: 22px;
-        left: 50%;
-        transform: translateX(-50%) translateY(40px);
-        background: #ffffffee;
-        backdrop-filter: blur(6px);
-        padding: 14px 22px;
-        border-radius: 14px;
-        font-size: 15px;
-        font-weight: 700;
-        color: var(--purple);
-        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-        opacity: 0;
-        transition: all 0.35s ease;
-        pointer-events: none;
+        bottom: 50px;
     }
+}
 
     #toast.show {
         opacity: 1;
@@ -376,11 +437,19 @@ public:
 
 <body>
 
-<h2>Raf — Тамагочи</h2>
+<div class="header">
+    <div class="header-inner">
+        <div class="badge">
+            <span>Панель управления</span>
+        </div>
 
-<div class="subtitle">
-    <div>Следи за его состоянием</div>
-    <div>Он очень ценит твою заботу</div>
+        <h2>Я люблю тебя, Яна. -L</h2>
+
+        <div class="subtitle">
+            <div>Небольшой уголок, где можно следить за его состоянием и вовремя заботиться.</div>
+            <div>Он очень ценит твою заботу и я тожеее ❤️</div>
+        </div>
+    </div>
 </div>
 
 <div class="card-wrapper">
@@ -415,7 +484,6 @@ public:
   }
 };
 
-// Небольшой уголок, где можно следить за его состоянием и вовремя добавлять заботы.
 Adafruit_SSD1306 display(128, 64, &Wire);
 
 const char *ssid = "U+Net0BBC";
@@ -432,6 +500,7 @@ private:
   static const unsigned char eatingFace_4[] PROGMEM;
   static const unsigned char eatingFace_5[] PROGMEM;
   static const unsigned char enoght[] PROGMEM;
+  static const unsigned char shower[] PROGMEM;
 
   static const unsigned char pettedFace[] PROGMEM;
 
@@ -497,10 +566,32 @@ public:
       display.display();
     }
   }
+
+  void showering()
+  {
+    for (int index = 0; index < 8; index++)
+    {
+      if (index != 0)
+        delay(100);
+      display.clearDisplay();
+      display.drawBitmap(STANDARD_SCREEN_OFFSET_X - 1, STANDARD_SCREEN_OFFSET_Y, this->enoght, 96, 48, SSD1306_WHITE);
+      display.drawBitmap(0 + index * 10, STANDARD_SCREEN_OFFSET_Y, this->shower, 96, 48, SSD1306_WHITE);
+      display.display();
+    }
+    for (int index = 0; index < 8; index++)
+    {
+      if (index != 0)
+        delay(100);
+      display.clearDisplay();
+      display.drawBitmap(STANDARD_SCREEN_OFFSET_X - 1, STANDARD_SCREEN_OFFSET_Y, this->enoght, 96, 48, SSD1306_WHITE);
+      display.drawBitmap(70 - index * 10, STANDARD_SCREEN_OFFSET_Y, this->shower, 96, 48, SSD1306_WHITE);
+      display.display();
+    }
+  }
 };
 
 Animations animation(display);
-Factors factors = {40, 40, 40, 40};
+Factors factors = {50, 50, 50, 50};
 unsigned int claculateOverall(Factors f)
 {
   return (f.attention + f.clean + f.hunger + f.petting) / 4;
@@ -923,6 +1014,45 @@ const unsigned char Animations::pettedFace[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+const unsigned char Animations::shower[] PROGMEM = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfe, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0xff, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x1f, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00,
+    0x3f, 0xff, 0xff, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0xff, 0xff, 0xff, 0xff,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x3c, 0x7f, 0xc3, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x7f, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xc0, 0x00, 0x00, 0x00, 0x1f, 0x80, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x1e, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xc0, 0x00, 0x00, 0x00, 0x3f, 0xe2, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x04, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xe0, 0x00, 0x00, 0x00, 0x7f, 0xf8, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00, 0x07, 0xfc, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x00, 0xfc, 0x7f, 0xff, 0xfe, 0x00, 0x7f, 0xff,
+    0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xff, 0xf0, 0x00, 0x07, 0xff, 0x80, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x3f, 0xff, 0x80, 0x00, 0x01, 0xff, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xfc,
+    0x00, 0x00, 0x00, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x80, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
 unsigned long blinkTimer = 0;
 unsigned long factorTimer = 0;
 uint8_t blinkState = 0;
@@ -954,6 +1084,7 @@ void HandleFactorsDecrease(Factors *f)
     f->hunger *= HUNGER_DECREASE_RATE;
     f->petting *= PETTING_DECREASE_RATE;
     factorTimer = now;
+    saveFactors(*f);
   }
 }
 
@@ -972,6 +1103,7 @@ void increaseFactor(unsigned int *factor, float rate)
     newValue = 100.0f;
 
   *factor = (unsigned int)newValue;
+  saveFactors(factors);
 }
 
 void APsetup()
@@ -996,7 +1128,7 @@ void APsetup()
   server.on("/feed", []()
             { if (factors.hunger<100) animation.eating(); else animation.enoughEating(); increaseFactor(&factors.hunger, 25); server.send(200, "text/plain; charset=UTF-8", "OK"); });
   server.on("/clean", []()
-            { increaseFactor(&factors.clean, 25); server.send(200, "text/plain; charset=UTF-8", "OK"); });
+            { if (factors.clean<100) animation.showering(); else animation.enoughEating(); increaseFactor(&factors.clean, 25); server.send(200, "text/plain; charset=UTF-8", "OK"); });
 
   server.begin();
   Serial.println("HTTP server started.");
@@ -1091,10 +1223,22 @@ void setup()
   blinkState = 0;
   isBlinking = false;
 
+  if (hasSavedFactors())
+  {
+    loadFactors(factors);
+    Serial.println("Loaded from memory!");
+  }
+  else
+  {
+    Serial.println("No saved data — using defaults!");
+    factors = {80, 80, 80, 80};
+    saveFactors(factors);
+  }
+
   display.clearDisplay();
   display.setTextSize(2);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
+  display.setCursor(STANDARD_SCREEN_OFFSET_X, STANDARD_SCREEN_OFFSET_Y + 20);
   display.println("LOADING");
   display.display();
 
