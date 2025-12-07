@@ -1789,7 +1789,7 @@ void setup()
 
   Serial.begin(115200);
 
-  // clearEEPROM(); // tmp
+  clearEEPROM(); // tmp
 
   delay(1000);
   Serial.println("BOOTING...");
