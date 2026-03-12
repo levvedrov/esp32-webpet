@@ -85,10 +85,10 @@ This allows the system to preserve the pet state after restarts.
 
 ## Hardware Requirements
 
--   ESP32 microcontroller
+-   ESP32-C3 microcontroller
 -   SSD1306 OLED display (128x64 I2C)
 -   Touch sensor or touch input pin
--   Jumper wires
+-   Wires
 -   USB or external power supply
 
 ## Pin Configuration
@@ -117,8 +117,7 @@ The project uses the following libraries:
 -   EEPROM
 -   time
 
-Install Adafruit GFX and Adafruit SSD1306 through the Arduino Library
-Manager.
+Install Adafruit GFX and Adafruit SSD1306
 
 ## Installation
 
@@ -126,11 +125,11 @@ Manager.
 
 git clone https://github.com/yourusername/raf-virtual-pet.git
 
-2.  Open the project in Arduino IDE
+2.  Open the project
 
 3.  Install required libraries through the Library Manager
 
-4.  Select the correct ESP32 board
+4.  Select the correct ESP32 board (C3)
 
 5.  Upload the firmware to the ESP32
 
