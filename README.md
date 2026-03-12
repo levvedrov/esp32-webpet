@@ -1,4 +1,4 @@
-# Raf --- ESP32 Virtual Pet with OLED Display and Web Control Panel
+# Raf - ESP32 Virtual Pet with OLED Display and Web Control Panel
 
 ## Overview
 
